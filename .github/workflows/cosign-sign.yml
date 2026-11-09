@@ -1,0 +1,56 @@
+name: Keyless Artifact Signing with Cosign
+
+on:
+  push:
+    tags:
+      - 'v*' # Kich hoat khi đẩy Git Tag dang v1.0.0, v2.0.0...
+  workflow_dispatch: # Cho pháp bấm nút chạy thú công từ giao diện Web
+
+permissions:
+  contents: read
+  id-token: write # Bắt buộc: Cho pháp hunner lấy OIDC: Token xác thực với Sigstore Fulcio
+
+jobs:
+  build-and-sign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4 
+
+      - name: Package Release Artifact
+        run: |
+          tar -czvf release.tar.gz app.py
+          sha256sum release.tar.gz > release.tar.gz.sha256
+          echo "Đã đóng gói tệp release.tar.gz thành công."
+
+      - name: Install Sigstore Cosign
+        uses: sigstore/cosign-installer@v3.8.2
+
+      - name: Sign Artifact Keylessly
+        env:
+          COSIGN_EXPERIMENTAL: "1" # Bật chể dộ Keyless Sigstore
+        run: |
+          cosign sign-blob \
+            --output-signature release.tar.gz.sig \
+            --output-certificate release.tar.gz.pem \
+            release.tar.gz
+          echo "Ký số Keyless thành cong! Chứng chỉ Fulcio và chữ ký đã được tạo."
+
+      - name: Verify Signed Artifact
+        run: |
+          cosign verify-blob \
+            --certificate release.tar.gz.pem \
+            --signature release.tar.gz.sig \
+            --certificate-identity "https://github.com/${ github.repository_owner }/${ github.event.repository.name }/.github/workflows/cosign-sign.yml@refs/tags/${ github.ref_name }" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            release.tar.gz
+
+      - name: Upload Signed Artifacts Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-signed-package
+          path: |
+            release.tar.gz
+            release.tar.gz.sig
+            release.tar.gz.pem
+            release.tar.gz.sha256
