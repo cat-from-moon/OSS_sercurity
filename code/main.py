@@ -6,7 +6,7 @@ import requests
 
 def main():
     parser = argparse.ArgumentParser(description="Show GitHub repository information.")
-    parser.add_argument("owner", nargs="?", default="Crabbercat", help="GitHub repository owner")
+    parser.add_argument("owner", nargs="?", default="cat-from-moon", help="GitHub repository owner")
     parser.add_argument(
         "repository", nargs="?", default="OSS_sercurity", help="GitHub repository name"
     )

@@ -1,3 +1,4 @@
+
 name: Generate SBOM Artifacts
 
 'on':
@@ -34,14 +35,14 @@ jobs:
           upload-artifact: false
 
       - name: Scan SPDX SBOM with Grype
-        uses: anchore/scan-action@v6
+        uses: anchore/scan-action@v7
         with:
           sbom: sbom.spdx.json
           fail-build: true
           severity-cutoff: high
 
       - name: Scan CycloneDX SBOM with Grype
-        uses: anchore/scan-action@v6
+        uses: anchore/scan-action@v7
         with:
           sbom: sbom.cyclonedx.json
           fail-build: true
