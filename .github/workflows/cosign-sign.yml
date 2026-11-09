@@ -1,3 +1,4 @@
+
 name: Keyless Artifact Signing with Cosign
 
 on:
@@ -13,21 +14,25 @@ permissions:
 jobs:
   build-and-sign:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Package Release Artifact
         run: |
-          tar -czvf release.tar.gz app.py
+          tar -czvf release.tar.gz -C ./code main.py requirements.txt
           sha256sum release.tar.gz > release.tar.gz.sha256
 
       - name: Install Sigstore Cosign
-        uses: sigstore/cosign-installer@v3.8.2
+        uses: sigstore/cosign-installer@v4
 
       - name: Sign Artifact Keylessly
+        env:
+          COSIGN_EXPERIMENTAL: "1"
         run: |
-          cosign sign-blob --yes \
+          cosign sign-blob \
+            --yes \
             --output-signature release.tar.gz.sig \
             --output-certificate release.tar.gz.pem \
             release.tar.gz
