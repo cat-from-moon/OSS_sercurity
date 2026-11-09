@@ -1,52 +1,73 @@
+
 name: SLSA Level 3 Provenance Generator
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
     tags:
       - 'v*'
 
-permissions: read-all
+# Không cấp quyền mặc định cho toàn bộ workflow
+permissions: {}
 
 jobs:
-  # Job 1: Biên dịch và đóng gói ứng dụng (Hardened Build)
+
+  # JOB 1: Build và đóng gói ứng dụng
   build:
-    outputs:
-      hashes: ${{ steps.hash.outputs.hashes }}
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
+
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+
     steps:
-      # Cố định commit SHA 40 ký tự thay vì tag phiên bản thô
+      # 1. Checkout source code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 2. Kiểm tra cấu trúc dự án
+      - name: Check Project Structure
+        run: |
+          ls -la
+          ls -la code/
+
+      # 3. Package application
       - name: Package Application Artifact
         run: |
-          tar -czvf release.tar.gz main.py
+          tar -czvf release.tar.gz -C ./code main.py requirements.txt
+          tar -tzvf release.tar.gz
+          echo "Application packaged successfully."
 
+      # 4. Generate SHA256 checksum
       - name: Generate SHA256 Checksum for SLSA
         id: hash
         run: |
-          # Tính mã băm SHA256 của tệp nén và mã hóa Base64 cho SLSA Generator
           echo "hashes=$(sha256sum release.tar.gz | base64 -w0)" >> "$GITHUB_OUTPUT"
 
+      # 5. Upload artifact for SLSA Generator
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-artifact
           path: release.tar.gz
+          if-no-files-found: error
 
-  # Job 2: Tự động sinh chứng nhận nguồn gốc xuất xứ SLSA Provenance (Level 3)
+  # JOB 2: Generate SLSA Level 3 Provenance
   provenance:
     needs: [build]
+
     permissions:
-      actions: read     # Đọc lịch sử bài chạy của GitHub Actions
-      id-token: write    # Lấy OIDC Token xác thực chữ ký chứng nhận
-      contents: write    # Ghi chứng nhận vào Release assets (nếu có)
+      actions: read
+      id-token: write
+      contents: read
+
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+
     with:
       base64-subjects: "${{ needs.build.outputs.hashes }}"
-      upload-assets: true
+      upload-assets: false
