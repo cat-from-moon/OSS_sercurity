@@ -10,12 +10,10 @@ on:
     tags:
       - 'v*'
 
-# Không cấp quyền mặc định cho toàn bộ workflow
 permissions: {}
 
 jobs:
-
-  # JOB 1: Build và đóng gói ứng dụng
+  # Job 1: Build application
   build:
     runs-on: ubuntu-latest
 
@@ -26,30 +24,18 @@ jobs:
       hashes: ${{ steps.hash.outputs.hashes }}
 
     steps:
-      # 1. Checkout source code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. Kiểm tra cấu trúc dự án
-      - name: Check Project Structure
-        run: |
-          ls -la
-          ls -la code/
-
-      # 3. Package application
       - name: Package Application Artifact
         run: |
           tar -czvf release.tar.gz -C ./code main.py requirements.txt
-          tar -tzvf release.tar.gz
-          echo "Application packaged successfully."
 
-      # 4. Generate SHA256 checksum
       - name: Generate SHA256 Checksum for SLSA
         id: hash
         run: |
           echo "hashes=$(sha256sum release.tar.gz | base64 -w0)" >> "$GITHUB_OUTPUT"
 
-      # 5. Upload artifact for SLSA Generator
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -57,17 +43,17 @@ jobs:
           path: release.tar.gz
           if-no-files-found: error
 
-  # JOB 2: Generate SLSA Level 3 Provenance
+  # Job 2: Generate SLSA Provenance
   provenance:
     needs: [build]
 
     permissions:
       actions: read
       id-token: write
-      contents: read
+      contents: write
 
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
 
     with:
       base64-subjects: "${{ needs.build.outputs.hashes }}"
-      upload-assets: false
+      upload-assets: true
