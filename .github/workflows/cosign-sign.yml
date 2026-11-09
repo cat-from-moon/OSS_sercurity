@@ -16,42 +16,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout source code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 2. Package application
       - name: Package Release Artifact
         run: |
           tar -czvf release.tar.gz -C ./code main.py requirements.txt
           sha256sum release.tar.gz > release.tar.gz.sha256
+          echo "Release package created successfully."
 
-      - name: Install Sigstore Cosign
-        uses: sigstore/cosign-installer@v4
-
-      - name: Sign Artifact Keylessly
-        env:
-          COSIGN_EXPERIMENTAL: "1"
+      # 3. Check SHA256 checksum
+      - name: Verify SHA256 Checksum
         run: |
-          cosign sign-blob \
-            --yes \
-            --output-signature release.tar.gz.sig \
-            --output-certificate release.tar.gz.pem \
-            release.tar.gz
+          sha256sum -c release.tar.gz.sha256
 
+      # 4. Install Cosign
+      - name: Install Sigstore Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      # 5. Sign artifact using Keyless Signing
+      - name: Sign Artifact Keylessly
+        run: |
+          cosign sign-blob release.tar.gz \
+            --bundle release.tar.gz.sigstore.json \
+            --yes
+
+      # 6. Verify artifact signature
       - name: Verify Signed Artifact
         run: |
-          cosign verify-blob \
-            --certificate release.tar.gz.pem \
-            --signature release.tar.gz.sig \
+          cosign verify-blob release.tar.gz \
+            --bundle release.tar.gz.sigstore.json \
             --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/cosign-sign.yml@${{ github.ref }}" \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            release.tar.gz
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
 
+      # 7. Upload signed artifacts
       - name: Upload Signed Artifacts Package
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-signed-package
           path: |
             release.tar.gz
-            release.tar.gz.sig
-            release.tar.gz.pem
             release.tar.gz.sha256
+            release.tar.gz.sigstore.json
+          if-no-files-found: warn
